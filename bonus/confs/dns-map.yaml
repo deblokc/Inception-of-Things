@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+  iot.server: |
+    iot.com:53 {
+      errors
+      health
+      ready
+      hosts {
+        SERVERLB_IP iot.com
+        SERVERLB_IP gitlab.iot.com
+        fallthrough
+      }
+      forward . /etc/resolv.conf
+      loop
+      loadbalance
+    }

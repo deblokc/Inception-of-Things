@@ -1,0 +1,63 @@
+# vi: set ft=ruby :
+
+# Set Vagrant version
+Vagrant.configure("2") do |config|
+
+  # Set base box and allocate ressources
+  config.vm.box = "debian/bookworm64"
+  config.vm.box_url = "https://vagrantcloud.com/debian/bookworm64"
+  config.vm.provider "virtualbox" do |vb|
+      vb.memory = 1024
+      vb.cpus = 1
+  end
+
+  # Common settings
+  config.vm.provision "shell", inline: <<-SHELL
+    apt update; apt full-upgrade -y; apt autoremove -y; apt autoclean -y;
+    apt install curl selinux-utils policycoreutils -y;
+    curl -sfL https://get.k3s.io --output k3s.sh;
+    chmod 0744 k3s.sh;
+    echo "192.168.56.110  tnatonS" >> /etc/hosts;
+    echo "192.168.56.111  tnatonSW" >> /etc/hosts;
+  SHELL
+
+  # Create Server
+  config.vm.define "tnatonS" do |tnatonS|
+      tnatonS.vm.hostname = "tnatonS"
+      tnatonS.vm.network "private_network", ip: "192.168.56.110", virtualbox__intnet: true
+      tnatonS.vm.provider "virtualbox" do |vb|
+          vb.name = "tnatonS"
+      end
+      tnatonS.vm.provision :shell, inline: <<-SHELL 
+          setenforce permissive
+          getenforce
+          export K3S_NODE_NAME=tnatonS && \
+          export K3S_EXTERNAL_IP=192.168.56.110 && \
+          export INSTALL_K3S_EXEC="--flannel-iface=eth1 --tls-san $K3S_EXTERNAL_IP --advertise-address $K3S_EXTERNAL_IP" && \
+          /bin/sh k3s.sh ;
+          cp /var/lib/rancher/k3s/server/node-token /vagrant/confs/
+          chmod 0777 /vagrant/confs/node-token
+      SHELL
+
+  end
+
+  # Create Worker
+  config.vm.define "tnatonSW" do |tnatonSW|
+      tnatonSW.vm.hostname = "tnatonSW"
+      tnatonSW.vm.network "private_network", ip: "192.168.56.111", virtualbox__intnet: true
+      tnatonSW.vm.provider "virtualbox" do |vb|
+          vb.name = "tnatonSW"
+      end
+      tnatonSW.vm.provision :shell, inline: <<-SHELL 
+          echo "Found token $(cat /vagrant/confs/node-token)"
+          setenforce permissive
+          getenforce
+          export K3S_NODE_NAME=tnatonSW && \
+          export INSTALL_K3S_EXEC="--flannel-iface=eth1" && \
+          export K3S_URL="https://tnatonS:6443" && \
+          export K3S_TOKEN=$(cat /vagrant/confs/node-token) && \
+          /bin/sh k3s.sh ;
+      SHELL
+  end
+
+end

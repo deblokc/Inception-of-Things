@@ -1,0 +1,7 @@
+FROM nginx
+COPY nginx-app-two.conf /etc/nginx/conf.d/nginx.conf
+RUN mkdir /etc/www
+COPY app2.html /etc/www/app2.html
+RUN chmod 0777 /etc/www/app2.html
+RUN chown www-data:www-data /etc/www/app2.html
+CMD sed -i s/POD_ID/$HOSTNAME/ /etc/www/app2.html ;nginx -g 'daemon off;'
